@@ -1,4 +1,5 @@
 from .bipartite_matching import BipartiteMatching
-from .maximum_flow import MaximumFlow
 from .dulmage_mendelsohn_decomposition import DulmageMendelsohnDecomposition
+from .io_table import IOTable
+from .maximum_flow import MaximumFlow
 from .strongly_connected_components import StronglyConnectedComponents
