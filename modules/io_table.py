@@ -12,7 +12,17 @@ class IOTable:
     def _extract_intermediate(self):
         rows = slice(1, 53)
         cols = slice(1, 53)
-        return self.df.iloc[rows, cols].astype(float)
+        intermediate_df = self.df.iloc[rows, cols].astype(float)
+
+        # すべての値が0の行を除外
+        zero_rows = intermediate_df.index[intermediate_df.sum(axis=1) == 0]
+        intermediate_df = intermediate_df.drop(index=zero_rows)
+
+        # 同じインデックスを持つ列も削除
+        intermediate_df = intermediate_df.drop(columns=zero_rows, errors="ignore")
+        print(intermediate_df.shape)
+
+        return intermediate_df
 
     def print_intermediate_table_summary(self):
         """
@@ -35,7 +45,7 @@ class IOTable:
             value = np.percentile(all_values, p)
             print(f"{p}パーセンタイル: {value:.2f}")
 
-    def get_filtered_intermediate(self, percentile=10, by_column=False):
+    def get_filtered_intermediate(self, percentile=10, by_row=False):
         """
         intermediate_dfの値のうち、下位n%(デフォルトは10%)未満の値を0に置き換えます
 
@@ -43,20 +53,81 @@ class IOTable:
         -----------
         percentile : int
             カットオフするパーセンタイル（デフォルト: 10）
-        by_column : bool
-            列ごとに個別のパーセンタイルを適用するかどうか（デフォルト: False）
+        by_row : bool
+            行ごとに個別のパーセンテイルを適用するかどうか（デフォルト: False）
         """
         filtered_df = self.intermediate_df.copy()
 
-        if by_column:
+        if by_row:
+            # 行ごとに個別のパーセンタイルを適用
+            for row in filtered_df.index:
+                threshold = filtered_df.loc[row].quantile(percentile / 100)
+                filtered_df.loc[row, filtered_df.loc[row] < threshold] = 0
+        else:
             # 列ごとに個別のパーセンタイルを適用
             for col in filtered_df.columns:
                 threshold = filtered_df[col].quantile(percentile / 100)
                 filtered_df.loc[filtered_df[col] < threshold, col] = 0
+
+        self.filtered_intermediate_df = filtered_df
+
+    def get_filtered_intermediate_by_percent(self, percentile=10, by_row=False):
+        """
+        intermediate_dfの各行または列に対して、下位n%の値を0に置き換えます
+
+        Parameters:
+        -----------
+        percentile : int
+            置き換える値のパーセンテージ（デフォルト: 10）
+        by_row : bool
+            行ごとに個別のパーセンテイルを適用するかどうか（デフォルト: False）
+        """
+        filtered_df = self.intermediate_df.copy()
+
+        if by_row:
+            # 行ごとに個別のパーセンテイルを適用
+            for row in filtered_df.index:
+                count = int(len(filtered_df.columns) * (percentile / 100))
+                threshold_indices = filtered_df.loc[row].nsmallest(count).index
+                filtered_df.loc[row, threshold_indices] = 0
         else:
-            # 全体の分布から1つの閾値を計算
-            threshold = filtered_df.stack().quantile(percentile / 100)
-            filtered_df[filtered_df < threshold] = 0
+            # 列ごとに個別のパーセンテイルを適用
+            for col in filtered_df.columns:
+                count = int(len(filtered_df) * (percentile / 100))
+                threshold_indices = filtered_df[col].nsmallest(count).index
+                filtered_df.loc[threshold_indices, col] = 0
+
+        self.filtered_intermediate_df = filtered_df
+
+    def filter_by_count(self, count: int, by_row: bool = False):
+        """
+        各行または各列の指定された数だけ残し、それ以外を0にします
+
+        Parameters:
+        -----------
+        count : int
+            残す値の数
+        by_row : bool
+            行ごとに個別のカウントを適用するかどうか（デフォルト: False）
+        """
+        filtered_df = self.intermediate_df.copy()
+
+        if by_row:
+            # 行ごとに指定された数だけ残す
+            for row in filtered_df.index:
+                # 各行の上位count個のインデックスを取得
+                top_indices = filtered_df.loc[row].nlargest(count).index
+                filtered_df.loc[
+                    row, filtered_df.loc[row] < filtered_df.loc[row, top_indices].min()
+                ] = 0
+        else:
+            # 列ごとに指定された数だけ残す
+            for col in filtered_df.columns:
+                # 各列の上位count個のインデックスを取得
+                top_indices = filtered_df[col].nlargest(count).index
+                filtered_df.loc[
+                    filtered_df[col] < filtered_df.loc[top_indices, col].min(), col
+                ] = 0
 
         self.filtered_intermediate_df = filtered_df
 
@@ -88,5 +159,6 @@ if __name__ == "__main__":
     io_table = IOTable("data/io_table.xlsx")
     io_table.print_intermediate_table()
     io_table.print_intermediate_table_summary()
-    io_table.get_filtered_intermediate(10)
+    # io_table.get_filtered_intermediate(30)
+    io_table.filter_by_count(20, by_row=True)
     io_table.save_filtered_intermediate("output/filtered_table.xlsx")

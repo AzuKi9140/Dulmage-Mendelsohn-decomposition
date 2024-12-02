@@ -38,17 +38,20 @@ from modules import DulmageMendelsohnDecomposition as DMDecomp
 # )
 
 io_table = IOTable("data/io_table.xlsx")
-io_table.get_filtered_intermediate(90)
+# io_table.get_filtered_intermediate(90)
+# io_table.get_filtered_intermediate(30, by_row=True)
+io_table.filter_by_count(20, by_row=True)
 matrix = io_table.filtered_intermediate_df.to_numpy()
-
+matrix = io_table.filtered_intermediate_df.to_numpy()
+matrix[matrix != 0] = 1  # 0以外の値をすべて1に置き換え
 print(matrix)
 
 bipartite_matching = BipartiteMatching(matrix)
-bipartite_matching.solve()
+# bipartite_matching.solve()
 
 maximum_flow = MaximumFlow(matrix)
 maximum_flow.solve()
-print(maximum_flow.matching)
+print(len(maximum_flow.matching))
 
 dm_decomposition = DMDecomp(matrix, maximum_flow.matching)
 dm_decomposition.solve()

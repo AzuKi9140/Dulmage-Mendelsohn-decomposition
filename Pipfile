@@ -7,6 +7,7 @@ name = "pypi"
 numpy = "*"
 mip = "*"
 openpyxl = "*"
+pandas = "*"
 
 [dev-packages]
 
